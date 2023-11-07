@@ -90,3 +90,7 @@ Build/Android/res/*/*
 # Ignore plugins binaries on deep subfolders
 Plugins/**/Binaries/*
 Plugins/**/Intermediate/*
+
+TCPServer/config.txt
+TCPServer/x64/*
+TCPServer/mysqlConnector/*
