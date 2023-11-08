@@ -18,6 +18,8 @@ int main()
 
 	//----- End DB Server -----
 
+	cout << "Start Server Programe\n\n";
+
 	WSADATA WsaData;
 
 	int Result = WSAStartup(MAKEWORD(2, 2), &WsaData);
@@ -42,7 +44,9 @@ int main()
 	memset(&ListenSockAddr, 0, sizeof(ListenSockAddr));
 	ListenSockAddr.sin_family = AF_INET;
 	ListenSockAddr.sin_addr.s_addr = htonl(INADDR_ANY);
-	ListenSockAddr.sin_port = htons(7777);
+	ListenSockAddr.sin_port = htons(9877);
+
+	cout << "Start Binding\n\n";
 
 	// DB 관련 라이브러리에 같은 함수명이 존재 해 namespace 표시 해 줌
 	Result = _WINSOCK2API_::bind(ListenSocket, (SOCKADDR*)&ListenSockAddr, sizeof(ListenSockAddr));
@@ -53,6 +57,8 @@ int main()
 		system("pause");
 		exit(-1);
 	}
+
+	cout << "Start Listening\n\n";
 
 	Result = listen(ListenSocket, SOMAXCONN);
 	if (Result == SOCKET_ERROR)
@@ -69,6 +75,8 @@ int main()
 
 	FD_ZERO(&Reads);
 	FD_SET(ListenSocket, &Reads);
+
+	cout << "Start Thread\n\n";
 
 	while (true)
 	{
@@ -127,7 +135,7 @@ unsigned __stdcall ServerThread(void* arg)
 	SOCKET client = *(SOCKET*)arg;
 
 	// Send
-	char message[1024] = "Server Message";
+	char message[1024] = "Server Send";
 
 	int sendByte = send(client, message, (int)(strlen(message)), 0);
 	if (sendByte <= 0)

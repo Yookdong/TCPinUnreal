@@ -29,7 +29,7 @@ void UTCPGameInstanceSubsystem::Deinitialize()
 
 bool UTCPGameInstanceSubsystem::Connect(const int32& PortNum, const FString& IP)
 {
-	Socket = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->CreateSocket(NAME_Stream, TEXT("TCPClientLoginSocket"), false);
+	Socket = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->CreateSocket(NAME_Stream, TEXT("default"), false);
 	if (!Socket)
 	{
 		UE_LOG(LogTemp, Error, TEXT("CreateSocket Failed"));
@@ -39,19 +39,20 @@ bool UTCPGameInstanceSubsystem::Connect(const int32& PortNum, const FString& IP)
 	FIPv4Address IPv4Address;
 	FIPv4Address::Parse(IP, IPv4Address);
 
-	TSharedPtr<FInternetAddr> SocketAddress = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->CreateInternetAddr();
+	//TSharedPtr<FInternetAddr> SocketAddress = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->CreateInternetAddr(); // 참조를 바꾸지 않을 것이기에
+	TSharedRef<FInternetAddr> SocketAddress = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->CreateInternetAddr();
 	SocketAddress->SetPort(PortNum);
 	SocketAddress->SetIp(IPv4Address.Value);
 
 	if (Socket->Connect(*SocketAddress))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("CreateSocket Failure"));
+		UE_LOG(LogTemp, Warning, TEXT("Connect TCP Success!"));
 
 		return true;
 	}
 	else
 	{
-		UE_LOG(LogTemp, Error, TEXT("CreateSocket Failure"));
+		UE_LOG(LogTemp, Error, TEXT("Connect TCP Failed"));
 		PrintSocketError(TEXT("Connect"));
 
 		DestroySocket();
@@ -73,13 +74,14 @@ void UTCPGameInstanceSubsystem::ConnectToTCPServer()
 	UWorld* world = GetWorld();
 	if (!world)
 	{
-
+		UE_LOG(LogTemp, Error, TEXT("World Error"));
+		return;
 	}
 
-	bool bConnect = Connect(8881, TEXT("127.0.0.1"));
+	bool bConnect = Connect(9877, TEXT("127.0.0.1"));
 	if (!bConnect)
 	{
-		UE_LOG(LogTemp, Error, TEXT("Fadiled Connect Server"));
+		UE_LOG(LogTemp, Error, TEXT("Connect Server Failed"));
 
 		// Reconnect to login server
 		FTimerHandle reconnectServerHandle;
@@ -95,77 +97,104 @@ void UTCPGameInstanceSubsystem::ConnectToTCPServer()
 
 bool UTCPGameInstanceSubsystem::Recv()
 {
+	UE_LOG(LogTemp, Display, TEXT("0000000"));
+
 	if (!Socket)
 	{
 		UE_LOG(LogTemp, Error, TEXT("Socket is null"));
 		return false;
 	}
 
-	if (Socket->Wait(ESocketWaitConditions::WaitForRead, FTimespan::FromSeconds(.5f)))
+	uint32 pendingDataSize;
+	if (Socket->HasPendingData(pendingDataSize))
 	{
-		// Recv
-		uint8 temp = 0;
-		int32 temptemp = 0;
+		UE_LOG(LogTemp, Display, TEXT("111111"));
 
-		int recvByte = 0;
-		bool bRecvSuccess = Socket->Recv(&temp, temptemp, recvByte);
-		if (!bRecvSuccess)
+		TArray<uint8> buffer;
+		buffer.SetNumUninitialized(FMath::Min(pendingDataSize, 65507u));
+
+		int32 recvByte = 0;
+		bool bSuccess = Socket->Recv(buffer.GetData(), buffer.Num(), recvByte);
+		if (!bSuccess)
 		{
-			PrintSocketError(TEXT("Receive Header"));
+			PrintSocketError(TEXT("Recv"));
 			return false;
 		}
+		UE_LOG(LogTemp, Display, TEXT("222222"));
 
-		//uint16 RecvPayloadSize;
-		//uint16 RecvPacketType;
+		// Ensure the data is null-terminated.
+		buffer.Add(0);
 
-		//// Get Size and Type from HeaderBuffer
-		//FMemory::Memcpy(&RecvPayloadSize, temp, sizeof(uint16_t));
-		//FMemory::Memcpy(&RecvPacketType, temp + sizeof(uint16_t), sizeof(uint16_t));
+		FString bufferString = UTF8_TO_TCHAR(buffer.GetData());
 
-		///* I Skip Network Byte Ordering because most of game devices use little endian */
-		//RecvPayloadSize = ntoh(RecvPayloadSize);
-		//RecvPacketType = ntoh(RecvPacketType);
+		UE_LOG(LogTemp, Log, TEXT("Message received: %s"), *bufferString);
 
-		//OutRecvPacket.PacketType = static_cast<ELoginPacket>(RecvPacketType);
-
-		//// Recv Payload
-		//if (RecvPayloadSize > 0)
-		//{
-		//	uint8_t* PayloadBuffer = new uint8_t[RecvPayloadSize + 1];
-
-		//	BytesRead = 0;
-		//	bool bRecvPayload = Socket->Recv(PayloadBuffer, RecvPayloadSize, BytesRead);
-
-		//	if (!bRecvPayload)
-		//	{
-		//		PrintSocketError(TEXT("Receive Payload"));
-		//		return false;
-		//	}
-		//	PayloadBuffer[RecvPayloadSize] = '\0';
-
-		//	//Utf8 to FStirng
-		//	FString PayloadString;
-		//	PayloadString = FString(UTF8_TO_TCHAR(reinterpret_cast<const char*>(PayloadBuffer)));
-
-		//	OutRecvPacket.Payload = PayloadString;
-
-		//	delete[] PayloadBuffer;
-		//	PayloadBuffer = nullptr;
-		//}
-
-		//UE_LOG(LogTemp, Warning, TEXT(" [Recv] PacketType : %d, PayloadSize : %d"), RecvPacketType, RecvPayloadSize);
+		return true;
 	}
-	return true;
+
+	//if (Socket->Wait(ESocketWaitConditions::WaitForRead, FTimespan::FromSeconds(.5f)))
+	//{
+	//	uint16 RecvPayloadSize;
+	//	uint16 RecvPacketType;
+
+	//	// Get Size and Type from HeaderBuffer
+	//	FMemory::Memcpy(&RecvPayloadSize, temp, sizeof(uint16_t));
+	//	FMemory::Memcpy(&RecvPacketType, temp + sizeof(uint16_t), sizeof(uint16_t));
+
+	//	/* I Skip Network Byte Ordering because most of game devices use little endian */
+	//	RecvPayloadSize = ntoh(RecvPayloadSize);
+	//	RecvPacketType = ntoh(RecvPacketType);
+
+	//	OutRecvPacket.PacketType = static_cast<ELoginPacket>(RecvPacketType);
+
+	//	// Recv Payload
+	//	if (RecvPayloadSize > 0)
+	//	{
+	//		uint8_t* PayloadBuffer = new uint8_t[RecvPayloadSize + 1];
+
+	//		BytesRead = 0;
+	//		bool bRecvPayload = Socket->Recv(PayloadBuffer, RecvPayloadSize, BytesRead);
+
+	//		if (!bRecvPayload)
+	//		{
+	//			PrintSocketError(TEXT("Receive Payload"));
+	//			return false;
+	//		}
+	//		PayloadBuffer[RecvPayloadSize] = '\0';
+
+	//		//Utf8 to FStirng
+	//		FString PayloadString;
+	//		PayloadString = FString(UTF8_TO_TCHAR(reinterpret_cast<const char*>(PayloadBuffer)));
+
+	//		OutRecvPacket.Payload = PayloadString;
+
+	//		delete[] PayloadBuffer;
+	//		PayloadBuffer = nullptr;
+	//	}
+
+	//	UE_LOG(LogTemp, Warning, TEXT(" [Recv] PacketType : %d, PayloadSize : %d"), RecvPacketType, RecvPayloadSize);
+	//}
+
+	return false;
 }
 
 bool UTCPGameInstanceSubsystem::Send()
 {
-	uint8 temp = 0;
-	int32 temptemp = 0;
+	if (!Socket)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Socket is null"));
+		return false;
+	}
 
-	int32 BytesSent = 0;
-	bool bSendBuffer = Socket->Send(&temp, temptemp, BytesSent);
-	if (!bSendBuffer)
+	FString message = TEXT("Unreal Send");
+	TCHAR* serializedChar = message.GetCharArray().GetData();
+	FTCHARToUTF8 data(serializedChar);
+
+	int32 size = FCString::Strlen(serializedChar) + 1;
+
+	int32 sendByte = 0;
+	bool bSuccess = Socket->Send((uint8*)data.Get(), size, sendByte);
+	if (!bSuccess)
 	{
 		PrintSocketError(TEXT("Send"));
 		return false;
