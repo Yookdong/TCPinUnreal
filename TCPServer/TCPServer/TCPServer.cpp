@@ -12,6 +12,8 @@ fd_set CopyReads;
 
 unsigned WINAPI ServerThread(void* arg);
 
+#define MAX_BUFFER_SIZE 1024
+
 int main()
 {
 	//----- Add DB Server -----
@@ -134,38 +136,42 @@ unsigned __stdcall ServerThread(void* arg)
 {
 	SOCKET client = *(SOCKET*)arg;
 
-	// Send
-	char message[1024] = "Server Send";
-
-	int sendByte = send(client, message, (int)(strlen(message)), 0);
-	if (sendByte <= 0)
+	while (true)
 	{
-		cout << "Send Error : " << GetLastError() << endl;
-		return false;
+		cout << "!!!!!!\n\n";
+		// Send
+		char message[MAX_BUFFER_SIZE] = "Server Send";
+
+		int sendByte = send(client, message, MAX_BUFFER_SIZE, 0);
+		if (sendByte <= 0)
+		{
+			cout << "Send Error : " << GetLastError() << endl;
+			return false;
+		}
+
+		cout << "Send Message : " << message << endl;
+
+		// Recv
+		char buffer[MAX_BUFFER_SIZE] = { 0, };
+		cout << "?????????\n\n";
+		int recvByte = recv(client, buffer, MAX_BUFFER_SIZE, 0);
+		if (recvByte <= 0)
+		{
+			SOCKADDR_IN clientSocketAddr;
+			int clientSockAddrLength = sizeof(clientSocketAddr);
+			getpeername(client, (SOCKADDR*)&clientSocketAddr, &clientSockAddrLength);
+
+			closesocket(client);
+			FD_CLR(client, &Reads);
+			CopyReads = Reads;
+
+			char IP[1024] = { 0, };
+			inet_ntop(AF_INET, &clientSocketAddr.sin_addr.s_addr, IP, 1024);
+			cout << "disconnected : " << IP << endl;
+		}
+
+		cout << "Recv Message : " << buffer << endl;
 	}
-
-	cout << "Send Message : " << message << endl;
-
-	// Recv
-	char buffer[1024] = { 0, };
-
-	int recvByte = recv(client, buffer, 1024, 0);
-	if (recvByte <= 0)
-	{
-		SOCKADDR_IN clientSocketAddr;
-		int clientSockAddrLength = sizeof(clientSocketAddr);
-		getpeername(client, (SOCKADDR*)&clientSocketAddr, &clientSockAddrLength);
-
-		closesocket(client);
-		FD_CLR(client, &Reads);
-		CopyReads = Reads;
-
-		char IP[1024] = { 0, };
-		inet_ntop(AF_INET, &clientSocketAddr.sin_addr.s_addr, IP, 1024);
-		cout << "disconnected : " << IP << endl;
-	}
-
-	cout << "Recv Message : " << buffer << endl;
 
 	return 0;
 }

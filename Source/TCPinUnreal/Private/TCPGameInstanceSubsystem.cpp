@@ -105,25 +105,27 @@ bool UTCPGameInstanceSubsystem::Recv()
 		return false;
 	}
 
-	uint32 pendingDataSize;
-	if (Socket->HasPendingData(pendingDataSize))
+	uint32 pendingDataSize = 1024;
+	//if (Socket->HasPendingData(pendingDataSize))// 대기 중인 데이터가 존재 할 때 true
+	if (Socket->Wait(ESocketWaitConditions::WaitForRead, FTimespan::FromSeconds(1.f)))
 	{
 		UE_LOG(LogTemp, Display, TEXT("111111"));
 
 		TArray<uint8> buffer;
-		buffer.SetNumUninitialized(FMath::Min(pendingDataSize, 65507u));
+		//buffer.SetNumUninitialized(FMath::Min(pendingDataSize, 65507u));
+		buffer.SetNumZeroed(pendingDataSize);
 
 		int32 recvByte = 0;
-		bool bSuccess = Socket->Recv(buffer.GetData(), buffer.Num(), recvByte);
+		bool bSuccess = Socket->Recv(buffer.GetData(), pendingDataSize, recvByte);
 		if (!bSuccess)
 		{
 			PrintSocketError(TEXT("Recv"));
 			return false;
 		}
-		UE_LOG(LogTemp, Display, TEXT("222222"));
+		UE_LOG(LogTemp, Display, TEXT("receive byte : %d"), recvByte);
 
 		// Ensure the data is null-terminated.
-		buffer.Add(0);
+		buffer.Add((uint8)'\n');
 
 		FString bufferString = UTF8_TO_TCHAR(buffer.GetData());
 
@@ -132,7 +134,7 @@ bool UTCPGameInstanceSubsystem::Recv()
 		return true;
 	}
 
-	//if (Socket->Wait(ESocketWaitConditions::WaitForRead, FTimespan::FromSeconds(.5f)))
+	//if (Socket->Wait(ESocketWaitConditions::WaitForRead, FTimespan::FromSeconds(.5f))) // 0.5초 마다 대기 중인 데이터가 있는 확인하고 있으면 true
 	//{
 	//	uint16 RecvPayloadSize;
 	//	uint16 RecvPacketType;
@@ -180,12 +182,13 @@ bool UTCPGameInstanceSubsystem::Recv()
 
 bool UTCPGameInstanceSubsystem::Send()
 {
+	UE_LOG(LogTemp, Display, TEXT("666666"));
 	if (!Socket)
 	{
 		UE_LOG(LogTemp, Error, TEXT("Socket is null"));
 		return false;
 	}
-
+	UE_LOG(LogTemp, Display, TEXT("888888"));
 	FString message = TEXT("Unreal Send");
 	TCHAR* serializedChar = message.GetCharArray().GetData();
 	FTCHARToUTF8 data(serializedChar);
@@ -194,12 +197,14 @@ bool UTCPGameInstanceSubsystem::Send()
 
 	int32 sendByte = 0;
 	bool bSuccess = Socket->Send((uint8*)data.Get(), size, sendByte);
+	UE_LOG(LogTemp, Display, TEXT("9999999"));
 	if (!bSuccess)
 	{
+		UE_LOG(LogTemp, Display, TEXT("654654654"));
 		PrintSocketError(TEXT("Send"));
 		return false;
 	}
-
+	UE_LOG(LogTemp, Display, TEXT("123123321"));
 	return true;
 }
 
@@ -255,21 +260,32 @@ uint32 FClientThread::Run()
 {
 	while (!bStopThread)
 	{
+		UE_LOG(LogTemp, Display, TEXT("Start Recv Thread"));
 		bool recvByte = GameInstanceSubsystem->Recv();
 		if (!recvByte)
 		{
 			UE_LOG(LogTemp, Error, TEXT("Recv Error, Stop Thread"));
-			break;
+			//break;
 		}
-
-		bool sendByte = GameInstanceSubsystem->Send();
-		if (!sendByte)
+		else
 		{
-			UE_LOG(LogTemp, Error, TEXT("Recv Error, Stop Thread"));
-			break;
+			UE_LOG(LogTemp, Display, TEXT("Start Send Thread"));
+			bool sendByte = GameInstanceSubsystem->Send();
+			if (!sendByte)
+			{
+				UE_LOG(LogTemp, Error, TEXT("Send Error, Stop Thread"));
+				break;
+			}
 		}
+		//UE_LOG(LogTemp, Display, TEXT("Start Send Thread"));
+		//bool sendByte = GameInstanceSubsystem->Send();
+		//if (!sendByte)
+		//{
+		//	UE_LOG(LogTemp, Error, TEXT("Send Error, Stop Thread"));
+		//	//break;
+		//}
 	}
-
+	UE_LOG(LogTemp, Error, TEXT("break while"));
 	return 0;
 }
 
